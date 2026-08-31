@@ -1,86 +1,163 @@
-<div align="center">
-  
-# ⚡ Smart Home Personal Energy Bill Optimizer
+![Smart Home Energy Optimizer Banner](banner.png)
+
+# Smart Home Personal Energy Bill Optimizer
 
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-EE4C2C?logo=pytorch)](https://pytorch.org)
 [![Streamlit](https://img.shields.io/badge/Streamlit-1.28%2B-FF4B4B?logo=streamlit)](https://streamlit.io)
+[![Plotly](https://img.shields.io/badge/Plotly-5.0%2B-3F4F75?logo=plotly)](https://plotly.com)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-An AI-powered energy management system that minimizes household electricity bills by intelligently shifting appliance loads away from peak tariff hours, all while strictly minimizing human discomfort.
+An intelligent energy management and demand-response system that minimizes residential electricity costs under Time-of-Use (TOU) tariffs. The system predicts 24-hour baseline household electricity demand with a PyTorch neural network, models occupant convenience using a Fuzzy Inference System (FIS), and executes load-shifting optimization via a Genetic Algorithm (GA) to generate dispatch schedules for IoT smart home hubs.
 
-</div>
+---
 
-<br>
-
-![Dashboard Screenshot](dashboard_screenshot.png)
-
-## 📖 Overview
-
-As time-of-use (TOU) electricity pricing becomes more prevalent, running heavy appliances during peak hours can drastically inflate your energy bill. The **Smart Home Energy Optimizer** acts as an intelligent orchestrator for your home. It predicts your baseline energy demand, evaluates TOU tariffs, and uses a Genetic Algorithm (GA) coupled with a Fuzzy Logic comfort evaluator to reschedule flexible appliances (like EV Chargers and Dishwashers) to off-peak hours.
-
-The result is a fully optimized 24-hour dispatch schedule that guarantees maximum financial savings without compromising your daily routines.
-
-## ✨ Key Features
-
-- **🧠 Neural Network Load Forecasting**: A PyTorch-based Multi-Layer Perceptron (MLP) trained on historical household usage to predict the next 24-hour baseline electrical demand.
-- **🧬 Genetic Algorithm (GA) Scheduler**: A custom optimization engine that explores thousands of scheduling combinations to find the absolute best runtimes for high-power appliances.
-- **🌡️ Fuzzy Logic Comfort Evaluator**: Translates human discomfort (e.g., waiting 4 hours for laundry, or a 2°C temperature deviation) into a mathematical penalty score, ensuring the GA doesn't sacrifice comfort for cheap energy.
-- **📊 Interactive Analytics Dashboard**: A sleek, responsive Streamlit dashboard featuring glassmorphism UI, Plotly dual-axis load curves, and Gantt charts for comparing habitual vs. optimized schedules.
-- **🔌 IoT Dispatch Ready**: Generates a standardized JSON payload ready to be ingested by smart home hubs (like Home Assistant) or MQTT brokers to physically actuate smart plugs and HVAC thermostats.
-
-## 🗂️ Project Architecture
+## System Architecture
 
 ```text
 energy_optimizer/
 │
 ├── data/
-│   └── generate_dataset.py      # Synthetic historical TOU and load data generator
+│   └── generate_dataset.py      # Synthetic historical TOU rates and demand profiles
 │
 ├── models/
-│   ├── forecasting.py           # PyTorch MLP for baseline load prediction
+│   ├── forecasting.py           # PyTorch MLP for 24-hour baseline load forecasting
 │   └── fuzzy_comfort.py         # Fuzzy Inference System for comfort penalty evaluation
 │
 ├── optimizer/
-│   └── ga_scheduler.py          # Genetic Algorithm for appliance load-shifting
+│   └── ga_scheduler.py          # Genetic Algorithm for appliance load-shifting & HVAC setback
 │
 ├── dashboard.py                 # Interactive Streamlit analytics frontend
-├── main.py                      # Headless optimization pipeline script
-└── requirements.txt             # Python dependencies
+├── main.py                      # Headless pipeline and IoT JSON dispatch script
+├── requirements.txt             # Project dependencies
+├── banner.png                   # System showcase banner and UI mockup
+└── README.md                    # Project documentation
 ```
 
-## 🚀 Installation & Setup
+---
 
-1. **Clone the repository** (or navigate to the project directory):
-   ```bash
-   cd energy_optimizer
-   ```
+## Core Engineering Modules
 
-2. **Install the dependencies**:
-   It is recommended to use a virtual environment.
-   ```bash
-   pip install -r requirements.txt
-   ```
+### 1. Neural Network Load Forecaster (`models/forecasting.py`)
+- **Model Architecture**: Multi-Layer Perceptron (MLP) built in PyTorch with ReLU activations and Dropout regularization.
+- **Feature Engineering**: Generates temporal features (hour, day of week), cyclical transformations, environmental variables (ambient temperature, home occupancy), and auto-regressive lag features (`lag_1h`, `lag_24h`, `temp_diff_1h`).
+- **Prediction Horizon**: Produces a standardized 24-hour hourly baseline power demand curve (kW).
 
-3. **Run the Interactive Dashboard**:
-   Launch the Streamlit UI to visualize the load curves and tweak optimization parameters.
-   ```bash
-   streamlit run dashboard.py
-   ```
-   Navigate to `http://localhost:8501` in your browser.
+### 2. Fuzzy Logic Comfort Evaluator (`models/fuzzy_comfort.py`)
+- **Appliance Shift Discomfort**: Evaluates delay intervals using triangular and trapezoidal membership functions (`Zero`, `Acceptable`, `Moderate`, `Severe`), converting rescheduling offsets into scaled penalty scores.
+- **HVAC Setback Discomfort**: Translates indoor temperature drift deviations during peak hours into human discomfort metrics.
+- **Combined Evaluation**: Ensures the optimizer avoids aggressive cost reductions that degrade user convenience.
 
-4. **Run the Headless Pipeline**:
-   If you just want to generate the JSON dispatch payload for your smart home:
-   ```bash
-   python main.py
-   ```
+### 3. Genetic Algorithm Scheduler (`optimizer/ga_scheduler.py`)
+- **Chromosome Representation**: Integer-encoded start hours for flexible appliances (EV Charger, Washing Machine, Dishwasher, Heat Pump Dryer) alongside a continuous float gene for peak HVAC temperature setback.
+- **Multi-Objective Cost Function**:
+  $$\text{Fitness} = \text{Electricity Cost (\$) } + \alpha \cdot \text{Discomfort Penalty}$$
+- **Evolutionary Operators**: Tournament selection, uniform crossover with gene-boundary validation, and Gaussian/random reset mutations over configurable generations and population sizes.
 
-## 🛠️ Usage & Configuration
+### 4. Interactive Glassmorphic Analytics Dashboard (`dashboard.py`)
+- **KPI Summary Telemetry**: Real-time glassmorphism metric cards displaying Habitual Cost, GA-Optimized Cost, Projected Savings Percentage, and Peak HVAC Setback.
+- **Interactive Load Curves**: Dual-axis Plotly visualization overlaying TOU pricing tiers (Off-Peak, Mid-Peak, Peak Price zones) with baseline and optimized consumption profiles.
+- **Appliance Schedule Timeline (Gantt)**: Interactive task shift timeline comparing habitual runtimes against GA-optimized dispatch windows.
+- **Cumulative Spending Trajectory**: 24-hour cumulative expenditure growth curves.
+- **Simulation Control Panel**: Dynamic sidebar controls to adjust population size, generation limits, and discomfort penalty weights on the fly.
 
-- **Genetic Algorithm Params**: Tweak the Population Size, Generations, and Comfort Penalty Weight directly via the Streamlit dashboard sidebar to see how they impact the resulting schedule.
-- **Appliances**: You can modify the list of flexible appliances (Duration, Power Rating in kW, Preferred Start Hour) inside `optimizer/ga_scheduler.py`.
-- **Fuzzy Rules**: The tolerance for temperature drift and appliance delay can be adjusted in `models/fuzzy_comfort.py` to match personal preferences.
+### 5. Smart Home IoT Dispatch Generator (`main.py`)
+- Formats optimized schedules into standardized JSON payloads ready for automated ingestion by Home Assistant, MQTT brokers, or smart plug relays.
 
-## 🔮 Future Enhancements
-- [ ] Connect to live weather APIs (e.g., Open-Meteo) for real-time ambient temperature forecasting.
-- [ ] Integrate a Multi-Objective Optimizer (NSGA-II) to generate a Pareto front of Cost vs. Discomfort.
-- [ ] Add direct MQTT integration to push the JSON payload directly to a Home Assistant server.
+```json
+{
+  "status": "SUCCESS",
+  "summary": {
+    "unoptimized_cost_usd": 18.07,
+    "optimized_cost_usd": 9.61,
+    "savings_usd": 8.46,
+    "savings_percent": 46.8
+  },
+  "hvac_control": {
+    "mode": "PEAK_SAVINGS",
+    "peak_setback_celsius": 2.20,
+    "effective_hours": "16:00 - 21:00"
+  },
+  "appliance_schedules": [
+    {
+      "appliance_name": "EV Charger",
+      "power_rating_kw": 3.3,
+      "scheduled_start_time": "01:00",
+      "scheduled_end_time": "05:00",
+      "smart_plug_command": "TURN_ON"
+    },
+    {
+      "appliance_name": "Washing Machine",
+      "power_rating_kw": 1.2,
+      "scheduled_start_time": "03:00",
+      "scheduled_end_time": "05:00",
+      "smart_plug_command": "TURN_ON"
+    },
+    {
+      "appliance_name": "Dishwasher",
+      "power_rating_kw": 1.5,
+      "scheduled_start_time": "00:00",
+      "scheduled_end_time": "02:00",
+      "smart_plug_command": "TURN_ON"
+    },
+    {
+      "appliance_name": "Heat Pump Dryer",
+      "power_rating_kw": 1.0,
+      "scheduled_start_time": "02:00",
+      "scheduled_end_time": "04:00",
+      "smart_plug_command": "TURN_ON"
+    }
+  ]
+}
+```
+
+---
+
+## Technical Specifications
+
+| Component | Implementation | Primary Libraries |
+| :--- | :--- | :--- |
+| **Forecasting Engine** | PyTorch Multi-Layer Perceptron (MLP) | `torch`, `scikit-learn`, `numpy` |
+| **Comfort Modeling** | Mamdani-style Fuzzy Inference System | `scikit-fuzzy`, `numpy` |
+| **Optimization Engine** | Custom Genetic Algorithm with Elitism | `numpy`, Python Standard Library |
+| **Frontend UI** | Dark Mode Glassmorphism Dashboard | `streamlit`, `plotly`, `pandas` |
+| **Data Ingestion** | Synthetic TOU and Household Sensor Generator | `pandas`, `numpy` |
+
+---
+
+## Getting Started
+
+### Prerequisites
+- Python 3.8 or higher
+- pip package manager
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/avishka-hashara/Personal-Energy-Bill-Optimizer.git
+cd Personal-Energy-Bill-Optimizer
+```
+
+### 2. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Run the Interactive Dashboard
+```bash
+streamlit run dashboard.py
+```
+Open your browser and navigate to `http://localhost:8501`.
+
+### 4. Run the Headless Pipeline
+To execute the neural network training, genetic algorithm scheduler, and produce the smart home dispatch payload directly in your terminal:
+```bash
+python main.py
+```
+
+---
+
+## Configuration & Hyperparameters
+
+- **Genetic Algorithm**: Adjust population size, generation limits, and the discomfort penalty weight parameter in `optimizer/ga_scheduler.py` or via the interactive dashboard sidebar.
+- **Appliances Profile**: Define flexible appliances, duration cycles, power consumption ratings (kW), and preferred operational windows in `optimizer/ga_scheduler.py`.
+- **Fuzzy Boundaries**: Customize tolerance thresholds for schedule delay and temperature drift in `models/fuzzy_comfort.py`.
